@@ -1,0 +1,11 @@
+
+
+Just drop in a web-accessible location, or run from the command line.
+Ensure that Zend is in the library directory, or is included in the include_path.
+
+Execute and enjoy the benefits of having either a HTML or SQL version of the categories.
+
+Feel free to refactor the code as you like to represent different formats!
+
+Copyright (c) 2010 Markizano Draconus <markizano@markizano.net>
+
