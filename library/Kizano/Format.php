@@ -1,4 +1,22 @@
 <?php
+/**
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *  @Copyright 2010
+ *  @Author Markizano Draconus <markizano@markizano.net> http://markizano.net/
+ */
+
 
 /**
  *  Formats various pages to strip unwanted HTML and return an associated array of the categories.
@@ -254,23 +272,26 @@ EO_QUERY;
             if($div->getAttribute('id') == 'siteDirectory'){ # <div id='siteDirectory'>
                 # Get the table's columns.
                 $tr = $div->getElementsByTagName('table')->item(0)->getElementsByTagName('tr')->item(0);
-                foreach($tr->getElementsByTagName('td') as $td){    # Iterate thru the rows
+                foreach($tr->getElementsByTagName('td') as $td){                            # Iterate thru the rows
                     # Retrieve a single column of categories
-                    $columnList = $td->getElementsByTagName('div')  # popover-grouping
-                        ->item(0)->getElementsByTagName('div');     # popover-category-name
-                    $column = $columnList->item(0);
-                    $heading = trim($column->getElementsByTagName('h4')->item(0)->nodeValue);
-                    foreach($columnList as $i => $row){
-                        if(!$i) continue;
-                        $a = $row->getElementsByTagName('a')->item(0);
-                        $category = trim(preg_replace('/\s+/i', chr(32), $a->nodeValue));
-                        $result[$heading][$category] = $a->getAttribute('href');
+                    foreach($td->getElementsByTagName('div') as $i => $grouping){                 # popover-grouping
+                        foreach($grouping->getElementsByTagName('div') as $_i => $category){
+                            if($grouping->getAttribute('class') == 'popover-grouping'){
+                                $category = $grouping->getElementsByTagName('div')->item(0)->nodeValue;
+                                $categoryName = Kizano_String::strip_whitespace($category);
+                            }
+                            $anchors = $grouping->getElementsByTagName('a');
+                            foreach($anchors as $a){
+                                $subcategory = Kizano_String::strip_whitespace($a->nodeValue);
+                                $result[$categoryName][$subcategory] = $a->getAttribute('href');
+                            }
+                        }
                     }
                 }
             }
         }
         # Pass the resulting array on to the next part of the scraping process.
-        $result = $this->_2ndLevel($result);
+        $result = $this->_nextLevel($result);
         return $result;
     }
 
@@ -288,102 +309,91 @@ EO_QUERY;
      *            'Audiobooks' => string '/Audiobooks-Books/b/ref=sd_allcat_ab/192-7717356-4636554?ie=UTF8&node=368395011' (length=79)
      *            'Magazines' => string '/magazines/b/ref=sd_allcat_magazines/192-7717356-4636554?ie=UTF8&node=599858' (length=76)
      */
-    protected function _2ndLevel(array $headings){
+    protected function _nextLevel(array $headings){
+        static $level;
+        if(!$level) $level = 0;
         $result = array();
+        if(!$level){
+#        	var_dump($headings);die;
+        }
         foreach($headings as $hKey => $heading){
             foreach($heading as $cKey => $href){
-                $uri = $this->getTld().$href;
-                # <url> The Url has some unique token near the end of it, we need to strip it for caching purposes.
-                $parsed = parse_url($uri);
-                $path = explode('/', $parsed['path']);
-                array_pop($path);
-                $parsed['path'] = join('/', $path);
-                $parsed['scheme'] .= '://';
-                $parsed['query'] = "?$parsed[query]";
-                $uri = join(null, $parsed);
-                # </url>
-
+                $uri = $this->_url($this->getTld().$href);
+                print "$uri\n";
                 $page = $this->_web_get_contents($uri);
                 $this->_tidy->parseString($page);
                 $this->_xml->loadXML($this->_tidy->value);
                 $divs = $this->_xml->getElementsByTagName('div');
-                # Believe me, I tried the getElementById() <- it didn't work :(
-                foreach($divs as $div){
-                    if($div->getAttribute('id') == 'leftcol'){
-                        $left_nav = $div->getElementsByTagName('div')->item(0);
-                        $columns = $left_nav->getElementsByTagName('h3');
-                        $subcols = $left_nav->getElementsByTagName('ul');
-                        foreach($columns as $columnIndex => $column){
-                            $columName = trim($column->nodeValue);
-                            $li = $subcols->item($columnIndex)->getElementsByTagName('li');
-                            foreach($li as $i => $link){
-                                $colKey = trim($link->getElementsByTagName('a')->item(0)->nodeValue);
-                                $href = $link->getElementsByTagName('a')->item(0)->getAttribute('href');
-                                $result[$hKey][$cKey][$columName][$colKey] = $href;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        $result = $this->_3rdLevel($result);
-        return $result;
-    }
-
-    protected function _3rdLevel(array $headings){
-        $result = array();
-        foreach($headings as $hKey => $heading){
-            foreach($heading as $colKey => $column){
-                foreach($column as $catKey => $category){
-                    foreach($category as $thKey => $href){
-                        $uri = $this->getTld().$href;
-                        # <url> The Url has some unique token near the end of it and in the query here,
-                        # we need to strip it for caching purposes.
-                        $parsed = parse_url($uri);
-                        if($parsed['host'] == 'www.amazon.comhttps') continue;
-                        $path = explode('/', $parsed['path']);
-                        $query = explode('&', $parsed['query']);
-                        unset($query['pf_rd_r']);
-                        $parsed['query'] = '?'.join('&', $query);
-                        array_pop($path);
-                        $parsed['path'] = join('/', $path);
-                        $parsed['scheme'] .= '://';
-                        $uri = join(null, $parsed);
-                        # </url>
-                        $page = str_replace("'", '&#39;', $this->_web_get_contents($uri));
-                        $this->_tidy->parseString($page);
-                        $this->_xml->loadXML($this->_tidy->value);
-                        $divs = $this->_xml->getElementsByTagName('div');
-                        # Believe me, I tried the getElementById() <- it didn't work :(
-                        foreach($divs as $div){
-                            if($div->getAttribute('id') == 'leftcol'){
-                                $left_nav = $div->getElementsByTagName('div')->item(0);
-                                # Not all pages have the same left navigation.
-                                if($left_nav->getAttribute('class') != 'left_nav') continue;
-
-                                $h3s = $left_nav->getElementsByTagName('h3');
-                                $uls = $left_nav->getElementsByTagName('ul');
-                                foreach($uls as $i => $ul){
-                                    $catName = trim($h3s->item($i)->nodeValue);
-                                    $lis = $ul->getElementsByTagName('li');
-                                    foreach($lis as $li){
-                                        $leaf = trim($li->getElementsByTagName('a')->item(0)->nodeValue);
-                                        if(empty($catName)){
-                                            if(in_array($leaf, $result[$hKey][$colKey][$catKey][$thKey])) continue;
-                                            $result[$hKey][$colKey][$catKey][$thKey][] = $leaf;
-                                        }else{
-                                            if(in_array($leaf, $result[$hKey][$colKey][$catKey][$thKey][$catName])) continue;
-                                            $result[$hKey][$colKey][$catKey][$thKey][$catName][] = $leaf;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                $list = $this->_getList($divs);
+                $result[$hKey][$cKey] = $this->_nextLevel($list);
+                $level++;
             }
         }
         return array_unique($result);
+    }
+
+    /**
+     *  Gets a list of the categories and such from the list of <div>s
+     *  @param divs     DomNodeList     The list of <div>s to search
+     *  @return array
+     */
+    protected function _getList(DomNodeList $divs){
+        $result = array();
+        # Believe me, I tried the getElementById() <- it didn't work :(
+        foreach($divs as $div){
+            if($div->getAttribute('id') == 'leftcol'){
+                $left_nav = $div->getElementsByTagName('div')->item(0);
+                # Not all pages have the same left navigation.
+                if($left_nav->getAttribute('class') != 'left_nav') continue;
+
+                $h3s = $left_nav->getElementsByTagName('h3');
+                $uls = $left_nav->getElementsByTagName('ul');
+                /**
+                 *  Iterate over each of the unordered lists instead of the headings, because
+                 *  not all pages have titled categories.
+                 */
+                foreach($uls as $i => $ul){
+                    # Assign the category title if applicable.
+                    $catName = trim($h3s->item($i)->nodeValue);
+                    $lis = $ul->getElementsByTagName('li');
+                    # For each of the items in the list.
+                    foreach($lis as $li){
+                        # Assign the leaf's value.
+                        $leaf = trim($li->getElementsByTagName('a')->item(0)->nodeValue);
+                        $href = $li->getElementsByTagName('a')->item(0)->getAttribute('href');
+                        if(empty($catName)){
+                            if(in_array($leaf, $result)) continue;
+                            $result[$leaf] = $href;
+                        }else{
+                            if(isset($result[$catName]) && in_array($leaf, $result[$catName])) continue;
+                            $result[$catName][$leaf] = $href;
+                        }
+                    }
+                }
+            }
+        }
+        return $result;
+    }
+
+    /**
+     *  Formats a URL so it's unique, but consistent, maintains its original value and is valid.
+     *  @param url      string      The URL to format.
+     *  @return mixed               The formatted URL on success, FALSE on error.
+     */
+    protected function _url($url){
+        # The Url has some unique token near the end of it and in the query here,
+        # we need to strip it for caching purposes.
+        $parsed = parse_url($url);
+        if($parsed['host'] == 'www.amazon.comhttps') return false;
+        $path = explode('/', $parsed['path']);
+        $query = explode('&', $parsed['query']);
+        if(isset($query['pf_rd_r'])) unset($query['pf_rd_r']);
+        $parsed['query'] = '?'.join('&', $query);
+        # Pop the unique token from the end of the product path.
+        array_pop($path);
+        $parsed['path'] = join('/', $path);
+        $parsed['scheme'] .= '://';
+        return join(null, $parsed);
     }
 
     /**

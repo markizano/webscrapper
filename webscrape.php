@@ -1,4 +1,22 @@
+#!/bin/php
 <?php
+/**
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ *  @Copyright 2010
+ *  @Author Markizano Draconus <markizano@markizano.net> http://markizano.net/
+ */
 
 define('PS', PATH_SEPARATOR);
 define('DS', DIRECTORY_SEPARATOR);
@@ -62,14 +80,22 @@ $format->setClient($request);
 if(file_exists('/tmp/webz/serialize')){
     $result = unserialize(file_get_contents('/tmp/webz/serialize'));
 }else{
-    error_reporting(0);
     $result = $format->Format($xml);
-    error_reporting(E_ALL | E_STRICT);
     file_put_contents('/tmp/webz/serialize', serialize($result));
 }
 
-#var_dump($result);die;
-header('Content-Type: text/plain; charset=utf-8');
-$formatted = $format->sqlify($result);
-print $formatted;
+if(isset($_GET['type'])){
+    switch($_GET['type']){
+        case 'sql':
+            header('Content-Type: text/plain; charset=utf-8');
+            $formatted = $format->sqlify($result);
+            break;
+        case 'html':
+            $formatted = $format->htmlify($result);
+    }
+    print $formatted;
+}else{
+    var_dump($result);
+}
+
 
