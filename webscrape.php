@@ -79,7 +79,7 @@ $format->setXML($xml);
 $format->setClient($request);
 
 # Garbage collection
-unset($tidy, $xml, $request);
+unset($tidy, $request);
 if (file_exists($tmp)) {
     $result = unserialize(file_get_contents($tmp));
 } else {

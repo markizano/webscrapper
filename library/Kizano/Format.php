@@ -304,7 +304,7 @@ EO_QUERY;
                                 $subcategory = Kizano_String::strip_whitespace($a->nodeValue);
                                 $result[$categoryName][$subcategory] = $a->getAttribute('href');
                             }
-                            unset($subcategory, $category, $categoryName)
+                            unset($subcategory, $category, $categoryName);
                         }
                     }
                 }
@@ -335,7 +335,7 @@ EO_QUERY;
         static $level;
         if (!$level) $level = 0;
         $result = array();
-        if ($level == 620) return $headings;
+        if ($level == 600) return $headings;
         if (!$level) {
 #        	var_dump($headings);die;
         }
