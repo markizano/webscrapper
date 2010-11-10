@@ -22,6 +22,7 @@ define('PS', PATH_SEPARATOR);
 define('DS', DIRECTORY_SEPARATOR);
 define('DIR_ROOT', __DIR__.DS);
 define('DIR_LIBRARY', DIR_ROOT.'library'.DS);
+define('DIR_TMP', DS.'tmp'.DS.'webz'.DS);
 define('MYSQL_HOST', 'phpmyadmin');
 define('MYSQL_USER', 'apache');
 define('MYSQL_PASS', 'apache2mysql');
@@ -39,11 +40,12 @@ require 'Zend/Loader/Autoloader.php';
 $autoloader = Zend_Loader_Autoloader::getInstance();
 $autoloader->setFallbackAutoloader(true);
 
+# The temporary PHP cache of the processing.
+$tmp = DIR_TMP.'serialize';
 # The pages we will obtain from amazon.com.
 $pages = array();
 
 $tidyConfig = array(
-#    'doctype' => '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">',
     'doctype' => '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">',
     'indent' => true,
     'tab-size' => 4,
@@ -51,25 +53,23 @@ $tidyConfig = array(
     'newline' => 'LF',
     'wrap' => 120,
     'numeric-entities' => true,
-#    'input-xml' => true,
     'output-xhtml' => true,
-#    'markup' => false,
 );
 
 # Create a request object to obtain the category page.
-$request = new Zend_Http_Client('http://www.amazon.com/gp/site-directory/');
-$body = preg_replace('/[\r\n]+/', "\n", $request->request('GET')->getBody());
+$request    = new Zend_Http_Client('http://www.amazon.com/gp/site-directory/');
+$body       = preg_replace('/[\r\n]+/', "\n", $request->request('GET')->getBody());
 
 # Clean up the HTML because it's not compilant by default.
-$tidy = tidy_parse_string($body, $tidyConfig, 'utf8');
-$clean = $tidy->value;
+$tidy       = tidy_parse_string($body, $tidyConfig, 'utf8');
+$clean      = $tidy->value;
 
 # Create a handler for the HTML.
-$xml = new DomDocument(1.0, 'utf-8');
+$xml        = new DomDocument(1.0, 'utf-8');
 $xml->loadXML($clean);
 
 # Check to make sure our caching directory exists.
-file_exists('/tmp/webz') || mkdir('/tmp/webz', 0755);
+file_exists(DIR_TMP) || mkdir(DIR_TMP, 0755);
 
 # Instanitate my formatter and format the resulting XML 
 $format = Kizano_Format::getInstance();
@@ -77,36 +77,41 @@ $format->setTld('http://www.amazon.com');
 $format->setTidy($tidy);
 $format->setXML($xml);
 $format->setClient($request);
-$tmp = '/tmp/webz/serialize';
-if(file_exists($tmp)){
+
+# Garbage collection
+unset($tidy, $xml, $request);
+if (file_exists($tmp)) {
     $result = unserialize(file_get_contents($tmp));
-}else{
+} else {
     $result = $format->Format($xml);
     file_put_contents($tmp, serialize($result));
 }
 
-if(isset($_GET['type'])){
-    switch($_GET['type']){
+if (isset($_GET['type'])) {
+    switch($_GET['type']) {
         case 'sql':
             header('Content-Type: text/plain; charset=utf-8');
             $formatted = $format->sqlify($result);
             break;
         case 'html':
             $formatted = $format->htmlify($result);
+            break;
+        default:
+            // break;
     }
     print $formatted;
-}else{
-    if(isset($_SERVER['argv'][1])){
-        switch($_SERVER['argv'][1]){
+} else {
+    if (isset($_SERVER['argv'][1])) {
+        switch($_SERVER['argv'][1]) {
         case 'sql':
             $formatted = $format->sqlify($result);
             break;
         case 'html':
             $formatted = $format->htmlify($result);
         }
-        file_put_contents('/tmp/webz/query.sql', $formatted);
-        print "\n\n\n/tmp/webz/query.sql was written :-)\n\n";
-    }else{
+        file_put_contents(DIR_TMP.'query.sql', $formatted);
+        print "\n\n\n".DIR_TMP."query.sql was written :-)\n\n";
+    } else {
         var_dump($result);
     }
 }

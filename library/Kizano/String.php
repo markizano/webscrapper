@@ -1,6 +1,7 @@
 <?php
 
-class Kizano_String{
+class Kizano_String
+{
 
     /**
      *  Strips ALL excess whitespace from strings.
@@ -8,9 +9,10 @@ class Kizano_String{
      *  @throws Kizano_Exception
      *  @return string
      */
-    public static function strip_whitespace($string){
-        if(empty($string)) return null;
-        if(!is_string($string)){
+    public static function strip_whitespace($string)
+    {
+        if (empty($string)) return null;
+        if (!is_string($string)) {
             throw new Kizano_Exception(sprintf(
                 '%s::%s(): Expecting string. Received `%s\'',
                 __CLASS__,

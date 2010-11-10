@@ -21,7 +21,8 @@
 /**
  *  Formats various pages to strip unwanted HTML and return an associated array of the categories.
  */
-class Kizano_Format{
+class Kizano_Format
+{
 
     protected static $_instance;
 
@@ -60,9 +61,10 @@ class Kizano_Format{
      *      mysql_real_escape_string without issues.
      *  @return void
      */
-    public function __construct(){
-        foreach(array('MYSQL_HOST', 'MYSQL_USER', 'MYSQL_PASS') as $mysql){
-            if(!defined($mysql)){
+    public function __construct()
+    {
+        foreach (array('MYSQL_HOST', 'MYSQL_USER', 'MYSQL_PASS') as $mysql) {
+            if (!defined($mysql)) {
                 throw new Kizano_Exception(sprintf(
                     '%s::%s(): `%s\' not defined. Must define MySQL configuration before intancing this class.',
                     __CLASS__,
@@ -73,7 +75,7 @@ class Kizano_Format{
         }
         # Open a MySQL connection so we can access mysql_real_escape_string() without issues.
         $this->_link = mysql_connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS);
-        if($e = mysql_error($this->_link)){
+        if ($e = mysql_error($this->_link)) {
             mysql_close($this->_link);
             throw new Kizano_Exception(sprintf(
                 '%s::%s(): Error opening the mysql connection! Please check your credentials.',
@@ -87,7 +89,8 @@ class Kizano_Format{
      *  Kills the connection to the DB before this object is destroyed.
      *  @return void
      */
-    public function __destruct(){
+    public function __destruct()
+    {
         mysql_close($this->_link);
     }
 
@@ -95,7 +98,8 @@ class Kizano_Format{
      *  Implements the singleton design pattern.
      *  @return Kizano_Format
      */
-    public static function getInstance(){
+    public static function getInstance()
+    {
         if (empty(self::$_instance)) {
             self::$_instance = new self;
         }
@@ -107,7 +111,8 @@ class Kizano_Format{
      *  @param tidy     Tidy        The tidy object to assign.
      *  @return void
      */
-    public function setTidy(Tidy $tidy){
+    public function setTidy(Tidy $tidy)
+    {
         $this->_tidy = $tidy;
     }
 
@@ -115,7 +120,8 @@ class Kizano_Format{
      *  Gets this tidy class instance.
      *  @return Tidy
      */
-    public function getTidy(){
+    public function getTidy()
+    {
         return $this->_tidy;
     }
 
@@ -124,7 +130,8 @@ class Kizano_Format{
      *  @param xml     xml        The xml object to assign.
      *  @return void
      */
-    public function setxml(DomDocument $xml){
+    public function setxml(DomDocument $xml)
+    {
         $this->_xml = $xml;
     }
 
@@ -132,7 +139,8 @@ class Kizano_Format{
      *  Gets this xml class instance.
      *  @return xml
      */
-    public function getxml(){
+    public function getxml()
+    {
         return $this->_xml;
     }
 
@@ -141,7 +149,8 @@ class Kizano_Format{
      *  @param client     Zend_Http_Client        The HTTP client object to assign.
      *  @return void
      */
-    public function setClient(Zend_Http_Client $client){
+    public function setClient(Zend_Http_Client $client)
+    {
         $this->_client = $client;
     }
 
@@ -149,16 +158,19 @@ class Kizano_Format{
      *  Gets this Zend_Http_Client class instance.
      *  @return Zend_Http_Client
      */
-    public function getClient(){
+    public function getClient()
+    {
         return $this->_client;
     }
 
-    public function getTld(){
+    public function getTld()
+    {
         return $this->_tld;
     }
 
-    public function setTld($tld){
-        if(!is_string($tld)){
+    public function setTld($tld)
+    {
+        if (!is_string($tld)) {
             throw new Kizano_Exception(sprintf(
                 '%s::%s() Expected string($tld); Received(%s)',
                 __CLASS__,
@@ -175,14 +187,15 @@ class Kizano_Format{
      *  @param depth    Integer     The number of levels deep this rendering is.
      *  @return string
      */
-    public function htmlify(array $data, $depth = 1){
+    public function htmlify(array $data, $depth = 1)
+    {
         $space = str_repeat(chr(32), 4 * $depth);
         $result = "$space<ul>\n";
-        foreach($data as $key => $datum){
-            if(is_array($datum)){
+        foreach ($data as $key => $datum) {
+            if (is_array($datum)) {
                 $result .= "$space    <li>\n$space        $key\n";
                 $result .= $this->htmlify($datum, $depth + 2);
-            }else{
+            } else {
                 $result .= "$space    <li>\n";
                 $result .= "$space        $datum\n";
             }
@@ -199,11 +212,12 @@ class Kizano_Format{
      *  @param parent_key   String      A name to use as the parent key.
      *  @return array
      */
-    public function sqlify(array $data, $parent_id = 1, $parent_key = null){
+    public function sqlify(array $data, $parent_id = 1, $parent_key = null)
+    {
         $result = null;
         static $category_id;
-        if(!$category_id) $category_id = 1;
-        if($category_id === 1 && !$parent_key){
+        if (!$category_id) $category_id = 1;
+        if ($category_id === 1 && !$parent_key) {
             $result .= <<<EO_QUERY
 CREATE TABLE IF NOT EXISTS `category`(
   `category_id` INT(9) UNSIGNED AUTO_INCREMENT,
@@ -217,9 +231,9 @@ CREATE TABLE IF NOT EXISTS `category`(
 ) ENGINE=INNODB DEFAULT CHARACTER SET=utf8 COLLATE=utf8_unicode_ci AUTO_INCREMENT=0;\n\n
 EO_QUERY;
         }
-        foreach($data as $key => $datum){
+        foreach ($data as $key => $datum) {
             # If the data key has children,
-            if(is_array($datum)){
+            if (is_array($datum)) {
                 # Then add this data key to the sql mapping query.
                 $name = mysql_real_escape_string($key, $this->_link);
                 $slug = mysql_real_escape_string($this->_sluggify("$parent_key|$key"), $this->_link);
@@ -233,7 +247,7 @@ EO_QUERY;
                 $category_id++;
                 $result .= $this->sqlify($datum, $category_id -1, $slug);
                 unset($slug);
-            }else{
+            } else {
                 # Else if the data is a leaf, then add it to the data map query.
                 $name = mysql_real_escape_string($datum, $this->_link);
                 $slug = mysql_real_escape_string($this->_sluggify("$parent_key|$datum"), $this->_link);
@@ -255,7 +269,8 @@ EO_QUERY;
      *  @param slug     The string to sluggify.
      *  @return string
      */
-    protected function _sluggify($slug){
+    protected function _sluggify($slug)
+    {
         # First convert all spaces to underscores,
         # Next convert all non-alphanumeric characters into dashes,
         # Finally, return the result.
@@ -267,24 +282,25 @@ EO_QUERY;
      *  @param content  String      The content of the page to format.
      *  @return array
      */
-    public function Format(DomDocument $xml){
+    public function Format(DomDocument $xml)
+    {
         $result = array();
         $divs = $xml->getElementsByTagName('div');
-        foreach($divs as $div){ # Global div content.
+        foreach ($divs as $div) { # Global div content.
             # Believe me, I tried the getElementById() <- it didn't work :(
-            if($div->getAttribute('id') == 'siteDirectory'){ # <div id='siteDirectory'>
+            if ($div->getAttribute('id') == 'siteDirectory') { # <div id='siteDirectory'>
                 # Get the table's columns.
                 $tr = $div->getElementsByTagName('table')->item(0)->getElementsByTagName('tr')->item(0);
-                foreach($tr->getElementsByTagName('td') as $td){                            # Iterate thru the rows
+                foreach ($tr->getElementsByTagName('td') as $td) {                            # Iterate thru the rows
                     # Retrieve a single column of categories
-                    foreach($td->getElementsByTagName('div') as $i => $grouping){                 # popover-grouping
-                        foreach($grouping->getElementsByTagName('div') as $_i => $category){
-                            if($grouping->getAttribute('class') == 'popover-grouping'){
+                    foreach ($td->getElementsByTagName('div') as $i => $grouping) {                 # popover-grouping
+                        foreach ($grouping->getElementsByTagName('div') as $_i => $category) {
+                            if ($grouping->getAttribute('class') == 'popover-grouping') {
                                 $category = $grouping->getElementsByTagName('div')->item(0)->nodeValue;
                                 $categoryName = Kizano_String::strip_whitespace($category);
                             }
                             $anchors = $grouping->getElementsByTagName('a');
-                            foreach($anchors as $a){
+                            foreach ($anchors as $a) {
                                 $subcategory = Kizano_String::strip_whitespace($a->nodeValue);
                                 $result[$categoryName][$subcategory] = $a->getAttribute('href');
                             }
@@ -314,16 +330,17 @@ EO_QUERY;
      *            'Audiobooks' => string '/Audiobooks-Books/b/ref=sd_allcat_ab/192-7717356-4636554?ie=UTF8&node=368395011' (length=79)
      *            'Magazines' => string '/magazines/b/ref=sd_allcat_magazines/192-7717356-4636554?ie=UTF8&node=599858' (length=76)
      */
-    protected function _nextLevel(array $headings){
+    protected function _nextLevel(array $headings)
+    {
         static $level;
-        if(!$level) $level = 0;
+        if (!$level) $level = 0;
         $result = array();
-        if($level == 620) return $headings;
-        if(!$level){
+        if ($level == 620) return $headings;
+        if (!$level) {
 #        	var_dump($headings);die;
         }
-        foreach($headings as $hKey => $heading){
-            foreach($heading as $cKey => $href){
+        foreach ($headings as $hKey => $heading) {
+            foreach ($heading as $cKey => $href) {
                 $uri = $this->_url($this->getTld().$href);
                 print "$uri\n";
                 $page = $this->_web_get_contents($uri);
@@ -346,14 +363,15 @@ EO_QUERY;
      *  @param divs     DomNodeList     The list of <div>s to search
      *  @return array
      */
-    protected function _getList(DomNodeList $divs){
+    protected function _getList(DomNodeList $divs)
+    {
         $result = array();
         # Believe me, I tried the getElementById() <- it didn't work :(
-        foreach($divs as $div){
-            if($div->getAttribute('id') == 'leftcol'){
+        foreach ($divs as $div) {
+            if ($div->getAttribute('id') == 'leftcol') {
                 $left_nav = $div->getElementsByTagName('div')->item(0);
                 # Not all pages have the same left navigation.
-                if($left_nav->getAttribute('class') != 'left_nav') continue;
+                if ($left_nav->getAttribute('class') != 'left_nav') continue;
 
                 $h3s = $left_nav->getElementsByTagName('h3');
                 $uls = $left_nav->getElementsByTagName('ul');
@@ -361,20 +379,20 @@ EO_QUERY;
                  *  Iterate over each of the unordered lists instead of the headings, because
                  *  not all pages have titled categories.
                  */
-                foreach($uls as $i => $ul){
+                foreach ($uls as $i => $ul) {
                     # Assign the category title if applicable.
                     $catName = trim($h3s->item($i)->nodeValue);
                     $lis = $ul->getElementsByTagName('li');
                     # For each of the items in the list.
-                    foreach($lis as $li){
+                    foreach ($lis as $li) {
                         # Assign the leaf's value.
                         $leaf = trim($li->getElementsByTagName('a')->item(0)->nodeValue);
                         $href = $li->getElementsByTagName('a')->item(0)->getAttribute('href');
-                        if(empty($catName)){
-                            if(in_array($leaf, $result)) continue;
+                        if (empty($catName)) {
+                            if (in_array($leaf, $result)) continue;
                             $result[$leaf] = $href;
-                        }else{
-                            if(isset($result[$catName]) && in_array($leaf, $result[$catName])) continue;
+                        } else {
+                            if (isset($result[$catName]) && in_array($leaf, $result[$catName])) continue;
                             $result[$catName][$leaf] = $href;
                         }
                         unset($leaf, $href);
@@ -392,14 +410,16 @@ EO_QUERY;
      *  @param url      string      The URL to format.
      *  @return mixed               The formatted URL on success, FALSE on error.
      */
-    protected function _url($url){
+    protected function _url($url)
+    {
         # The Url has some unique token near the end of it and in the query here,
         # we need to strip it for caching purposes.
         $parsed = parse_url($url);
-        if($parsed['host'] == 'www.amazon.comhttps') return false;
+        # Amazon sometimes returns this weird host that isn't parsable, so we need to skip it.
+        if ($parsed['host'] == 'www.amazon.comhttps') return false;
         $path = explode('/', $parsed['path']);
         $query = explode('&', $parsed['query']);
-        if(isset($query['pf_rd_r'])) unset($query['pf_rd_r']);
+        if (isset($query['pf_rd_r'])) unset($query['pf_rd_r']);
         $parsed['query'] = '?'.join('&', $query);
         # Pop the unique token from the end of the product path.
         array_pop($path);
@@ -413,16 +433,17 @@ EO_QUERY;
      *  @param url      The web page to obtain
      *  @return mixed   string on success containing the web page. False on error.
      */
-    protected function _web_get_contents($uri){
-        if(empty($this->_client)) return false;
+    protected function _web_get_contents($uri)
+    {
+        if (empty($this->_client)) return false;
         $filename = hash('sha256', $uri);
-        if(!file_exists("/tmp/webz/$filename")){
+        if (!file_exists(DIR_TMP."$filename")) {
             $this->_client->setUri($uri);
             $result = $this->_client->request('GET')->getBody();
-            file_put_contents("/tmp/webz/$filename", $result);
+            file_put_contents(DIR_TMP."$filename", $result);
             return $result;
-        }else{
-            return file_get_contents("/tmp/webz/$filename");
+        } else {
+            return file_get_contents(DIR_TMP."$filename");
         }
     }
 }
