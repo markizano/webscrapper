@@ -229,8 +229,10 @@ EO_QUERY;
                     "`category_name` = '$name', ".
                     "`slug` = '$slug'".
                 ";\n";
+                unset($name);
                 $category_id++;
                 $result .= $this->sqlify($datum, $category_id -1, $slug);
+                unset($slug);
             }else{
                 # Else if the data is a leaf, then add it to the data map query.
                 $name = mysql_real_escape_string($datum, $this->_link);
@@ -241,6 +243,7 @@ EO_QUERY;
                     "`category_name` = '$name', ".
                     "`slug` = '$slug'".
                 ";\n";
+                unset($name, $slug);
                 $category_id++;
             }
         }
@@ -285,11 +288,13 @@ EO_QUERY;
                                 $subcategory = Kizano_String::strip_whitespace($a->nodeValue);
                                 $result[$categoryName][$subcategory] = $a->getAttribute('href');
                             }
+                            unset($subcategory, $category, $categoryName)
                         }
                     }
                 }
             }
         }
+        unset($divs, $tr);
         # Pass the resulting array on to the next part of the scraping process.
         $result = $this->_nextLevel($result);
         return $result;
@@ -313,6 +318,7 @@ EO_QUERY;
         static $level;
         if(!$level) $level = 0;
         $result = array();
+        if($level == 620) return $headings;
         if(!$level){
 #        	var_dump($headings);die;
         }
@@ -322,10 +328,13 @@ EO_QUERY;
                 print "$uri\n";
                 $page = $this->_web_get_contents($uri);
                 $this->_tidy->parseString($page);
+	            unset($page, $uri);
                 $this->_xml->loadXML($this->_tidy->value);
                 $divs = $this->_xml->getElementsByTagName('div');
                 $list = $this->_getList($divs);
+                unset($divs);
                 $result[$hKey][$cKey] = $this->_nextLevel($list);
+                unset($list);
                 $level++;
             }
         }
@@ -368,8 +377,11 @@ EO_QUERY;
                             if(isset($result[$catName]) && in_array($leaf, $result[$catName])) continue;
                             $result[$catName][$leaf] = $href;
                         }
+                        unset($leaf, $href);
                     }
+                    unset($catname, $lis);
                 }
+                unset($h3s, $uls, $left_nav);
             }
         }
         return $result;
@@ -405,7 +417,7 @@ EO_QUERY;
         if(empty($this->_client)) return false;
         $filename = hash('sha256', $uri);
         if(!file_exists("/tmp/webz/$filename")){
-            $this->_client = new Zend_Http_Client($uri);
+            $this->_client->setUri($uri);
             $result = $this->_client->request('GET')->getBody();
             file_put_contents("/tmp/webz/$filename", $result);
             return $result;

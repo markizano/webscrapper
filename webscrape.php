@@ -77,11 +77,12 @@ $format->setTld('http://www.amazon.com');
 $format->setTidy($tidy);
 $format->setXML($xml);
 $format->setClient($request);
-if(file_exists('/tmp/webz/serialize')){
-    $result = unserialize(file_get_contents('/tmp/webz/serialize'));
+$tmp = '/tmp/webz/serialize';
+if(file_exists($tmp)){
+    $result = unserialize(file_get_contents($tmp));
 }else{
     $result = $format->Format($xml);
-    file_put_contents('/tmp/webz/serialize', serialize($result));
+    file_put_contents($tmp, serialize($result));
 }
 
 if(isset($_GET['type'])){
@@ -95,7 +96,18 @@ if(isset($_GET['type'])){
     }
     print $formatted;
 }else{
-    var_dump($result);
+    if(isset($_SERVER['argv'][1])){
+        switch($_SERVER['argv'][1]){
+        case 'sql':
+            $formatted = $format->sqlify($result);
+            break;
+        case 'html':
+            $formatted = $format->htmlify($result);
+        }
+        file_put_contents('/tmp/webz/query.sql', $formatted);
+        print "\n\n\n/tmp/webz/query.sql was written :-)\n\n";
+    }else{
+        var_dump($result);
+    }
 }
-
 
