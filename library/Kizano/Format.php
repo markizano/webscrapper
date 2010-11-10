@@ -75,12 +75,13 @@ class Kizano_Format
         }
         # Open a MySQL connection so we can access mysql_real_escape_string() without issues.
         $this->_link = mysql_connect(MYSQL_HOST, MYSQL_USER, MYSQL_PASS);
-        if ($e = mysql_error($this->_link)) {
+        if (!$this->_link || $e = mysql_error($this->_link)) {
             mysql_close($this->_link);
             throw new Kizano_Exception(sprintf(
-                '%s::%s(): Error opening the mysql connection! Please check your credentials.',
+                '%s::%s(): Error opening the mysql connection! Please check your credentials. MySQL Error: %s',
                 __CLASS__,
-                __FUNCTION__
+                __FUNCTION__,
+                isset($e)? $e: null
             ));
         }
     }
@@ -312,13 +313,14 @@ EO_QUERY;
         }
         unset($divs, $tr);
         # Pass the resulting array on to the next part of the scraping process.
-        $result = $this->_nextLevel($result);
+        $result = $this->_nextLevel($result, 0);
         return $result;
     }
 
     /**
      *  Next step in the webscraping process. Extracts the 2nd level links and gets their categories.
-     *  @param cats     array   The categories from $this->Format();
+     *  @param headings     Array   The categories from $this->Format();
+     *  @param level        Integer The depth we have sunk into this beast.
      *  @return array
      *  @Example:
      *      array
@@ -330,29 +332,77 @@ EO_QUERY;
      *            'Audiobooks' => string '/Audiobooks-Books/b/ref=sd_allcat_ab/192-7717356-4636554?ie=UTF8&node=368395011' (length=79)
      *            'Magazines' => string '/magazines/b/ref=sd_allcat_magazines/192-7717356-4636554?ie=UTF8&node=599858' (length=76)
      */
-    protected function _nextLevel(array $headings)
+    protected function _nextLevel(array $headings, $level = 0)
     {
-        static $level;
-        if (!$level) $level = 0;
         $result = array();
-        if ($level == 600) return $headings;
-        if (!$level) {
-#        	var_dump($headings);die;
-        }
-        foreach ($headings as $hKey => $heading) {
-            foreach ($heading as $cKey => $href) {
-                $uri = $this->_url($this->getTld().$href);
-                print "$uri\n";
-                $page = $this->_web_get_contents($uri);
-                $this->_tidy->parseString($page);
-	            unset($page, $uri);
-                $this->_xml->loadXML($this->_tidy->value);
-                $divs = $this->_xml->getElementsByTagName('div');
-                $list = $this->_getList($divs);
-                unset($divs);
-                $result[$hKey][$cKey] = $this->_nextLevel($list);
-                unset($list);
-                $level++;
+#        if ($level >= MAX_DEPTH) return false;
+        if (is_array($headings) && count($headings)) {
+            foreach ($headings as $hKey => $heading) {
+                $result[$hKey] = array();
+                if (is_array($heading) && count($heading)) {
+                    foreach ($heading as $cKey => $href) {
+                        $result[$hKey][$cKey] = array();
+                        $uri = $this->_url($this->getTld().$href);
+                        if (!$uri){
+                            continue;
+                        }
+                        print "$uri\n";
+                        $page = $this->_web_get_contents($uri);
+                        $this->_tidy->parseString($page);
+	                    unset($page, $uri);
+                        @$this->_xml->loadXML($this->_tidy->value);
+                        $divs = $this->_xml->getElementsByTagName('div');
+                        $list = $this->_getList($divs);
+                        unset($divs);
+                        if(!is_array($list) || empty($list)){
+                            if(isset($result[$hKey][$cKey])) unset($result[$hKey][$cKey]);
+                            $result[$hKey][] = $cKey;
+                            unset($list, $href);
+                            continue;
+                        }
+/*
+                        set_error_handler(function(){
+                            $args = func_get_args();
+                            var_dump($args);die;
+                        }, E_WARNING);
+*/
+                        if ($level >= MAX_DEPTH) {
+                            die('over the limit!');
+                            if (is_array($list)) {
+                                $listKeys = array_keys($list);
+                                $listVals = array_values($list);
+                                $current = Current($listVals);
+                                if (is_string($current)) {
+                                    if ($current{0} != '/') {
+                                        $result[$hKey][$cKey] = $listKeys;
+                                    }
+                                } else {
+                                    $listValues = array_map('array_keys', $listVals);
+                                }
+                            }
+                            if (isset($listValues)) {
+                                $result[$hKey][$cKey] = array_combine($listKeys, $listValues);
+                            } else {
+                                $current = Current($listKeys);
+                                if (is_string($current) && $current{0} != '/') {
+                                    $result[$hKey][$cKey] = $listKeys;
+                                }
+                            }
+#                            var_dump($result);die;
+                            unset($list);
+                            break 2;
+                        } else {
+                            $result[$hKey][$cKey] = $this->_nextLevel($list, $level+1);
+                        }
+#                        print_r(array(
+#                            "\033[31mnextLevel\033[00m" => $nextLevel,
+#                            "\033[31mlist\033[00m" => $list,
+#                            "\033[31mresult\033[00m" => $result,
+#                            "\033[31mlevel\033[00m" => $level
+#                        ));
+                        unset($list);
+                    }
+                }
             }
         }
         return array_unique($result);
@@ -381,21 +431,30 @@ EO_QUERY;
                  */
                 foreach ($uls as $i => $ul) {
                     # Assign the category title if applicable.
-                    $catName = trim($h3s->item($i)->nodeValue);
+                    $h3 = $h3s->item($i);
+                    if(!empty($h3)) $catName = trim($h3->nodeValue);
                     $lis = $ul->getElementsByTagName('li');
                     # For each of the items in the list.
                     foreach ($lis as $li) {
                         # Assign the leaf's value.
+                        $a = $li->getElementsByTagName('a')->item(0);
+                        if(empty($a) || !($a instanceof DomNode)) {
+                            unset($a, $li);
+                            continue;
+                        }
                         $leaf = trim($li->getElementsByTagName('a')->item(0)->nodeValue);
                         $href = $li->getElementsByTagName('a')->item(0)->getAttribute('href');
                         if (empty($catName)) {
                             if (in_array($leaf, $result)) continue;
                             $result[$leaf] = $href;
                         } else {
-                            if (isset($result[$catName]) && in_array($leaf, $result[$catName])) continue;
+                            if (isset($result[$catName]) && in_array($leaf, $result[$catName])) {
+                                unset($leaf, $href, $a);
+                                continue;
+                            }
                             $result[$catName][$leaf] = $href;
                         }
-                        unset($leaf, $href);
+                        unset($leaf, $href, $a);
                     }
                     unset($catname, $lis);
                 }
@@ -412,20 +471,29 @@ EO_QUERY;
      */
     protected function _url($url)
     {
+        $url = trim($url);
+        if(empty($url)) return false;
         # The Url has some unique token near the end of it and in the query here,
         # we need to strip it for caching purposes.
         $parsed = parse_url($url);
         # Amazon sometimes returns this weird host that isn't parsable, so we need to skip it.
         if ($parsed['host'] == 'www.amazon.comhttps') return false;
+        if ($parsed['scheme'] == 'https') return false;
         $path = explode('/', $parsed['path']);
-        $query = explode('&', $parsed['query']);
-        if (isset($query['pf_rd_r'])) unset($query['pf_rd_r']);
-        $parsed['query'] = '?'.join('&', $query);
+        if (isset($parsed['query'])) {
+            $query = explode('&', $parsed['query']);
+            foreach ($query as $k => $q) {
+                if(preg_match('/^(node|ie|pf_rd_i).*/i', $q)) continue;
+                unset($query[$k]);
+            }
+            $parsed['query'] = '?' . join('&', $query);
+        }
         # Pop the unique token from the end of the product path.
         array_pop($path);
         $parsed['path'] = join('/', $path);
         $parsed['scheme'] .= '://';
-        return join(null, $parsed);
+        $result = join(null, $parsed);
+        return $result;
     }
 
     /**
@@ -438,7 +506,13 @@ EO_QUERY;
         if (empty($this->_client)) return false;
         $filename = hash('sha256', $uri);
         if (!file_exists(DIR_TMP."$filename")) {
-            $this->_client->setUri($uri);
+print "\033[36mNew URL!\033[00m\n"; # DEBUG
+            try{
+                $this->_client->setUri($uri);
+            }catch(Exception $e){
+                var_dump($e, $uri);
+                die;
+            }
             $result = $this->_client->request('GET')->getBody();
             file_put_contents(DIR_TMP."$filename", $result);
             return $result;

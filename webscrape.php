@@ -22,10 +22,13 @@ define('PS', PATH_SEPARATOR);
 define('DS', DIRECTORY_SEPARATOR);
 define('DIR_ROOT', __DIR__.DS);
 define('DIR_LIBRARY', DIR_ROOT.'library'.DS);
-define('DIR_TMP', DS.'tmp'.DS.'webz'.DS);
+define('DIR_TMP', '/var/cache/php'.DS.'webz'.DS);
+
 define('MYSQL_HOST', 'phpmyadmin');
 define('MYSQL_USER', 'apache');
 define('MYSQL_PASS', 'apache2mysql');
+
+define('MAX_DEPTH', 2);
 
 ini_set('include_path',
     join(PATH_SEPARATOR, array(
@@ -105,12 +108,14 @@ if (isset($_GET['type'])) {
         switch($_SERVER['argv'][1]) {
         case 'sql':
             $formatted = $format->sqlify($result);
+            file_put_contents('query.sql', $formatted);
+            print "\n\n\nquery.sql was written :-)\n\n";
             break;
         case 'html':
             $formatted = $format->htmlify($result);
+            file_put_contents('query.htm', $formatted);
+            print "\n\n\nquery.htm was written :-)\n\n";
         }
-        file_put_contents(DIR_TMP.'query.sql', $formatted);
-        print "\n\n\n".DIR_TMP."query.sql was written :-)\n\n";
     } else {
         var_dump($result);
     }
