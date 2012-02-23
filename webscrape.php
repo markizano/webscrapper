@@ -22,7 +22,7 @@ define('PS', PATH_SEPARATOR);
 define('DS', DIRECTORY_SEPARATOR);
 define('DIR_ROOT', __DIR__.DS);
 define('DIR_LIBRARY', DIR_ROOT.'library'.DS);
-define('DIR_TMP', '/var/cache/php'.DS.'webz'.DS);
+define('DIR_TMP', '/var/cache/php' . DS . 'webz' . DS);
 
 define('MYSQL_HOST', 'phpmyadmin');
 define('MYSQL_USER', 'apache');
